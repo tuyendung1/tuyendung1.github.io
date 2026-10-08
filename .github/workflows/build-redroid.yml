@@ -26,6 +26,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y lzip
           git clone https://github.com/ayasa520/redroid-script.git builder
           
+
       # 3. Cài đặt trực tiếp thư viện Python bằng pip hệ thống
       - name: Install Python Dependencies Locally
         run: |
@@ -37,7 +38,7 @@ jobs:
           cd builder
           python3 redroid.py -a ${{ github.event.inputs.android_version }} -m
 
-      # 5. Di chuyển các file script vào thư mục và tạo file Dockerfile truyền thống
+      # 5. Di chuyển các file script vào thư mục và tạo file Dockerfile tối ưu
       - name: Generate Custom Dockerfile
         run: |
           mkdir -p workspace
@@ -52,7 +53,8 @@ jobs:
           COPY init.vphone.sh /system/bin/init.vphone.sh
           COPY vphone.rc /vendor/etc/init/vphone.rc
 
-          USER root
+          # Xóa bỏ dòng USER root gây lỗi hệ thống Android passwd. 
+          # Mặc định Docker chạy lớp này đã sử dụng quyền Root cao nhất.
           RUN chmod 0755 /system/bin/init.vphone.sh
           EOF
 
