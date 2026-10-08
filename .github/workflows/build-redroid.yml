@@ -1,4 +1,4 @@
-name: Build Redroid Auto-IMEI Stable
+name: Build Redroid Auto-IMEI Ultimate Full
 
 on:
   workflow_dispatch:
@@ -16,29 +16,29 @@ jobs:
       packages: write
 
     steps:
-      # 1. Tải mã nguồn của bro (chứa 2 file init.vphone.sh và vphone.rc)
+      # 1. Tải mã nguồn của bro (chứa 2 file init.vphone.sh và vphone.rc ở thư mục gốc)
       - name: Checkout Repository
         uses: actions/checkout@v4.2.2
 
-      # 2. Clone công cụ redroid-script uy tín từ cộng đồng
+      # 2. Clone công cụ redroid-script uy tín từ cộng đồng để vá Magisk
       - name: Fetch Redroid Script Tools
         run: |
           sudo apt-get update && sudo apt-get install -y lzip
           git clone https://github.com/ayasa520/redroid-script.git builder
           
-
-      # 3. Cài đặt trực tiếp thư viện Python bằng pip hệ thống
+      # 3. Cài đặt trực tiếp thư viện Python bằng pip hệ thống để tránh lỗi thiếu module
       - name: Install Python Dependencies Locally
         run: |
           sudo pip3 install requests tqdm
 
-      # 4. Chạy script để tự động tải bản Redroid gốc và tự động vá Magisk vào bộ nhớ Local
+      # 4. Chạy script để tự động tải bản Redroid gốc từ Docker Hub và tự động vá Magisk
       - name: Extract and Patch Magisk
         run: |
           cd builder
           python3 redroid.py -a ${{ github.event.inputs.android_version }} -m
 
-      # 5. Di chuyển các file script vào thư mục và tạo file Dockerfile tối ưu
+      # 5. Di chuyển các file script vào thư mục và tạo file Dockerfile SẠCH 100%
+      # Đã loại bỏ hoàn toàn lệnh "USER root" gây lỗi hệ thống passwd của Android
       - name: Generate Custom Dockerfile
         run: |
           mkdir -p workspace
@@ -46,19 +46,18 @@ jobs:
           cp vphone.rc ./workspace/
           
           cat <<EOF > ./workspace/Dockerfile
-          # Sử dụng Image gốc đã có Magisk nằm ngay trong bộ nhớ đệm Local của máy
+          # Sử dụng Image gốc đã có Magisk nằm ngay trong bộ nhớ đệm Local của máy ảo
           FROM redroid/redroid:${{ github.event.inputs.android_version }}_magisk
 
-          # Nhúng các tập lệnh tự sinh IMEI và PIN vào hệ thống Android
+          # Nhúng các tập lệnh tự sinh IMEI và PIN vào thẳng phân vùng hệ thống Android
           COPY init.vphone.sh /system/bin/init.vphone.sh
           COPY vphone.rc /vendor/etc/init/vphone.rc
 
-          # Xóa bỏ dòng USER root gây lỗi hệ thống Android passwd. 
-          # Mặc định Docker chạy lớp này đã sử dụng quyền Root cao nhất.
-          RUN chmod 0755 /system/bin/init.vphone.sh
+          # Thực hiện phân quyền trực tiếp, Docker sẽ tự dùng quyền tối cao mà không bị lỗi passwd
+          RUN chmod 755 /system/bin/init.vphone.sh
           EOF
 
-      # 6. Đăng nhập tự động vào hệ thống GitHub Packages (GHCR) của bro
+      # 6. Đăng nhập tự động vào hệ thống lưu trữ GitHub Packages (GHCR)
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3.3.0
         with:
@@ -66,18 +65,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 7. Tiến hành Build lớp cuối bằng Docker gốc và Push thẳng lên GHCR
+      # 7. Tiến hành Build lớp cuối bằng lệnh Docker truyền thống để nhận diện Image Local và Push thẳng lên mạng
       - name: Compile and Push Custom Redroid Image
         run: |
-          # Ép tên tài khoản viết thường để tránh lỗi Docker Registry hệ thống
+          # Ép tên tài khoản viết thường để tránh lỗi Docker Registry hệ thống khi tài khoản có chữ hoa
           REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           TARGET_TAG="ghcr.io/${REPO_OWNER}/redroid-auto-imei:${{ github.event.inputs.android_version }}"
           
           cd workspace
           
-          # Dùng lệnh docker build truyền thống để nhận diện được Image nền Local
+          # Build đè lớp script IMEI/PIN lên Image nền Magisk có sẵn trong máy
           docker build -t "$TARGET_TAG" -f Dockerfile .
           
           # Đẩy Image hoàn chỉnh lên kệ Packages của bro
           docker push "$TARGET_TAG"
-          
