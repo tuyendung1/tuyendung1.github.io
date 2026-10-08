@@ -22,9 +22,9 @@ jobs:
 
       # 2. Cài đặt Python và môi trường đóng gói phụ thuộc
       - name: Setup Python Environment
-        uses: actions/setup-python@v5
-        with:
-          python-packages: 'requests tqdm'
+        run: |
+          sudo pip3 install requests tqdm
+        
 
       # 3. Clone công cụ redroid-script uy tín từ cộng đồng
       - name: Fetch Redroid Script Tools
