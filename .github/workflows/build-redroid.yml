@@ -1,0 +1,50 @@
+name: Build and Push Redroid Image
+
+# Kích hoạt khi bạn nhấn nút thủ công trên GitHub (Workflow Dispatch)
+on:
+  workflow_dispatch:
+    inputs:
+      android_version:
+        description: 'Phiên bản Android (Ví dụ: 11.0.0, 12.0.0, 13.0.0)'
+        required: true
+        default: '11.0.0'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      # 1. Kiểm tra mã nguồn kho lưu trữ
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # 2. Thiết lập Docker Buildx để tối ưu quá trình build
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 3. Đăng nhập vào hệ thống lưu trữ Image của GitHub (GHCR)
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 4. Clone công cụ nhúng Magisk vào Redroid
+      - name: Clone Redroid Magisk Builder
+        run: |
+          git clone https://github.com builder
+          cd builder
+          # Sửa script build gốc để đẩy trực tiếp lên Registry thay vì chỉ lưu local
+          sed -i 's/docker build/docker buildx build --push --tag ghcr.io\/${{ github.repository_owner }}\/redroid-magisk:${{ github.event.inputs.android_version }} -f Dockerfile ./g' build.sh
+
+      # 5. Tiến hành Build và tự động Đẩy (Push) lên GitHub Packages
+      - name: Build and Push Redroid Image
+        run: |
+          cd builder
+          # Cấp quyền và chạy lệnh build phiên bản đã chọn kèm Magisk
+          chmod +x build.sh
+          ./build.sh ${{ github.event.inputs.android_version }}-latest
