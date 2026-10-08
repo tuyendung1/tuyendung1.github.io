@@ -25,6 +25,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-packages: 'requests'
+          python-packages: 'tqdm'
 
       # 3. Clone công cụ redroid-script uy tín từ cộng đồng
       - name: Fetch Redroid Script Tools
