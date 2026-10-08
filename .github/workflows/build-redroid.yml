@@ -1,11 +1,10 @@
-name: Build and Push Redroid Image
+name: Build Redroid Clean Auto-IMEI
 
-# Kích hoạt khi bạn nhấn nút thủ công trên GitHub (Workflow Dispatch)
 on:
   workflow_dispatch:
     inputs:
       android_version:
-        description: 'Phiên bản Android (Ví dụ: 11.0.0, 12.0.0, 13.0.0)'
+        description: 'Phiên bản Android (Ví dụ: 11.0.0)'
         required: true
         default: '11.0.0'
 
@@ -17,50 +16,53 @@ jobs:
       packages: write
 
     steps:
-      # 1. Kiểm tra mã nguồn kho lưu trữ
+      # 1. Tải mã nguồn từ kho lưu trữ của bro
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
-      # 2. Thiết lập Docker Buildx để tối ưu quá trình build
+      # 2. Tạo sẵn thư mục môi trường sạch
+      - name: Create Clean Workspace
+        run: |
+          mkdir -p workspace
+          cp init.vphone.sh ./workspace/
+          cp vphone.rc ./workspace/
+
+      # 3. Tạo trực tiếp file Dockerfile gốc tại thư mục sạch (Không dùng git clone ngoài)
+      - name: Generate Inline Dockerfile
+        run: |
+          cat <<EOF > ./workspace/Dockerfile
+          # Sử dụng Image nền gốc từ công cụ build sẵn Magisk/Zygisk của cộng đồng
+          FROM ghcr.io/googway/redroid-magisk:${{ github.event.inputs.android_version }}
+
+          # Nhúng trực tiếp tập lệnh tự sinh IMEI và thiết lập PIN vào phân vùng Android
+          COPY init.vphone.sh /system/bin/init.vphone.sh
+          COPY vphone.rc /vendor/etc/init/vphone.rc
+
+          USER root
+          RUN chmod 0755 /system/bin/init.vphone.sh
+          EOF
+
+      # 4. Thiết lập hệ thống đóng gói Docker Buildx mới nhất
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3.10.0
 
-      # 3. Đăng nhập vào hệ thống lưu trữ Image của GitHub (GHCR)
+      # 5. Đăng nhập tự động vào GitHub Packages (GHCR)
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3.3.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-             # 4. Tải công cụ nhúng Magisk và chèn cấu hình IMEI/PIN vào Dockerfile
-      - name: Setup Redroid Magisk and Custom Props
-        run: |
-          git clone https://github.com builder
-          cd builder
-          
-          # Sao chép các file cấu hình IMEI/PIN từ Repo ngoài vào thư mục build
-          cp ../init.vphone.sh ./
-          cp ../vphone.rc ./
 
-          # Chèn trực tiếp lệnh COPY và cấu hình vào cuối Dockerfile gốc
-          echo "" >> Dockerfile
-          echo "COPY init.vphone.sh /system/bin/init.vphone.sh" >> Dockerfile
-          echo "COPY vphone.rc /vendor/etc/init/vphone.rc" >> Dockerfile
-          echo "USER root" >> Dockerfile
-          echo "RUN chmod 0755 /system/bin/init.vphone.sh" >> Dockerfile
-
-      # 5. Chạy lệnh Build trực tiếp bằng Buildx (Bỏ qua file build.sh lỗi thời)
-      - name: Build and Push Custom Redroid Image
+      # 6. Tiến hành Build và tự động đẩy (Push) trực tiếp lên tài khoản của bro
+      - name: Build and Push Image
         run: |
-          cd builder
-          
-          # Chuyển tên Username thành chữ thường để tránh lỗi Docker Registry
+          # Ép tên tài khoản viết thường để tránh lỗi Docker Registry hệ thống
           REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           
-          # Thực hiện tải Redroid gốc về làm nền, gộp Magisk và đóng gói đẩy lên GHCR
+          cd workspace
           docker buildx build \
             --platform linux/amd64 \
-            --build-arg "IMAGE=redroid/redroid:${{ github.event.inputs.android_version }}-latest" \
             --push \
             --tag "ghcr.io/${REPO_OWNER}/redroid-auto-imei:${{ github.event.inputs.android_version }}" \
             -f Dockerfile .
