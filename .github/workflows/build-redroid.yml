@@ -20,40 +20,35 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4.2.2
 
-      # 2. Cài đặt Python và môi trường đóng gói phụ thuộc
-      - name: Setup Python Environment
-        run: |
-          sudo pip3 install requests tqdm
-        
-
-      # 3. Clone công cụ redroid-script uy tín từ cộng đồng
+      # 2. Clone công cụ redroid-script uy tín từ cộng đồng
       - name: Fetch Redroid Script Tools
         run: |
           sudo apt-get update && sudo apt-get install -y lzip
           git clone https://github.com/ayasa520/redroid-script.git builder
+          
+      # 3. Cài đặt trực tiếp thư viện Python bằng pip hệ thống
+      - name: Install Python Dependencies Locally
+        run: |
+          sudo pip3 install requests tqdm
 
-      # 4. Chạy script để tự động tải bản Redroid gốc và tự động vá Magisk
+      # 4. Chạy script để tự động tải bản Redroid gốc và tự động vá Magisk vào bộ nhớ Local
       - name: Extract and Patch Magisk
         run: |
           cd builder
-          # Lệnh này tự kéo bản Android 11 gốc về và tự động tích hợp Magisk
           python3 redroid.py -a ${{ github.event.inputs.android_version }} -m
-          
-          
-      # 5. Nhúng các file tự sinh IMEI và thiết lập PIN vào lớp Android hoàn chỉnh
-      - name: Inject Custom IMEI and PIN Scripts
+
+      # 5. Di chuyển các file script vào thư mục và tạo file Dockerfile truyền thống
+      - name: Generate Custom Dockerfile
         run: |
-          # Di chuyển vào thư mục build tạm thời để tạo lớp Dockerfile bổ sung
           mkdir -p workspace
           cp init.vphone.sh ./workspace/
           cp vphone.rc ./workspace/
-          docker save redroid/redroid:${{ github.event.inputs.android_version }}_magisk -o ./workspace/base_magisk.tar
           
           cat <<EOF > ./workspace/Dockerfile
-          # Lấy lớp nền chứa Magisk vừa được tạo ra ở bước trước
+          # Sử dụng Image gốc đã có Magisk nằm ngay trong bộ nhớ đệm Local của máy
           FROM redroid/redroid:${{ github.event.inputs.android_version }}_magisk
 
-          # Sao chép các tệp tin script cấu hình vào thẳng nhân Android
+          # Nhúng các tập lệnh tự sinh IMEI và PIN vào hệ thống Android
           COPY init.vphone.sh /system/bin/init.vphone.sh
           COPY vphone.rc /vendor/etc/init/vphone.rc
 
@@ -61,11 +56,7 @@ jobs:
           RUN chmod 0755 /system/bin/init.vphone.sh
           EOF
 
-      # 6. Thiết lập hệ thống đóng gói Buildx chuyên sâu
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.10.0
-
-      # 7. Đăng nhập tự động vào hệ thống GitHub Packages (GHCR)
+      # 6. Đăng nhập tự động vào hệ thống GitHub Packages (GHCR) của bro
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3.3.0
         with:
@@ -73,16 +64,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 8. Thực hiện Build lớp cuối và đẩy trực tiếp lên tài khoản cá nhân của bro
+      # 7. Tiến hành Build lớp cuối bằng Docker gốc và Push thẳng lên GHCR
       - name: Compile and Push Custom Redroid Image
         run: |
           # Ép tên tài khoản viết thường để tránh lỗi Docker Registry hệ thống
           REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          TARGET_TAG="ghcr.io/${REPO_OWNER}/redroid-auto-imei:${{ github.event.inputs.android_version }}"
           
           cd workspace
-          docker buildx build \
-            --platform linux/amd64 \
-            --push \
-            --tag "ghcr.io/${REPO_OWNER}/redroid-auto-imei:${{ github.event.inputs.android_version }}" \
-            -f Dockerfile .
-            
+          
+          # Dùng lệnh docker build truyền thống để nhận diện được Image nền Local
+          docker build -t "$TARGET_TAG" -f Dockerfile .
+          
+          # Đẩy Image hoàn chỉnh lên kệ Packages của bro
+          docker push "$TARGET_TAG"
+          
