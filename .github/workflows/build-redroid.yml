@@ -32,19 +32,36 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      # 4. Clone công cụ nhúng Magisk vào Redroid
-      - name: Clone Redroid Magisk Builder
+             # 4. Tải công cụ nhúng Magisk và chèn cấu hình IMEI/PIN vào Dockerfile
+      - name: Setup Redroid Magisk and Custom Props
         run: |
           git clone https://github.com builder
           cd builder
-          # Sửa script build gốc để đẩy trực tiếp lên Registry thay vì chỉ lưu local
-          sed -i 's/docker build/docker buildx build --push --tag ghcr.io\/${{ github.repository_owner }}\/redroid-magisk:${{ github.event.inputs.android_version }} -f Dockerfile ./g' build.sh
+          
+          # Sao chép các file cấu hình IMEI/PIN từ Repo ngoài vào thư mục build
+          cp ../init.vphone.sh ./
+          cp ../vphone.rc ./
 
-      # 5. Tiến hành Build và tự động Đẩy (Push) lên GitHub Packages
-      - name: Build and Push Redroid Image
+          # Chèn trực tiếp lệnh COPY và cấu hình vào cuối Dockerfile gốc
+          echo "" >> Dockerfile
+          echo "COPY init.vphone.sh /system/bin/init.vphone.sh" >> Dockerfile
+          echo "COPY vphone.rc /vendor/etc/init/vphone.rc" >> Dockerfile
+          echo "USER root" >> Dockerfile
+          echo "RUN chmod 0755 /system/bin/init.vphone.sh" >> Dockerfile
+
+      # 5. Chạy lệnh Build trực tiếp bằng Buildx (Bỏ qua file build.sh lỗi thời)
+      - name: Build and Push Custom Redroid Image
         run: |
           cd builder
-          # Cấp quyền và chạy lệnh build phiên bản đã chọn kèm Magisk
-          chmod +x build.sh
-          ./build.sh ${{ github.event.inputs.android_version }}-latest
+          
+          # Chuyển tên Username thành chữ thường để tránh lỗi Docker Registry
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          
+          # Thực hiện tải Redroid gốc về làm nền, gộp Magisk và đóng gói đẩy lên GHCR
+          docker buildx build \
+            --platform linux/amd64 \
+            --build-arg "IMAGE=redroid/redroid:${{ github.event.inputs.android_version }}-latest" \
+            --push \
+            --tag "ghcr.io/${REPO_OWNER}/redroid-auto-imei:${{ github.event.inputs.android_version }}" \
+            -f Dockerfile .
+            
