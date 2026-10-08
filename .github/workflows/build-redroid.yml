@@ -39,11 +39,7 @@ jobs:
           # Lệnh này tự kéo bản Android 11 gốc về và tự động tích hợp Magisk
           python3 redroid.py -a ${{ github.event.inputs.android_version }} -m
           
-          # Giải nén Image vừa sinh ra tạm thời để chuẩn bị nhúng tiếp IMEI
-          docker mknod /dev/loop0 b 7 0 || true
-          mkdir -p ./root_dir
-          docker save redroid/redroid:${{ github.event.inputs.android_version }}_magisk | tar -xC ./root_dir
-
+          
       # 5. Nhúng các file tự sinh IMEI và thiết lập PIN vào lớp Android hoàn chỉnh
       - name: Inject Custom IMEI and PIN Scripts
         run: |
@@ -51,6 +47,7 @@ jobs:
           mkdir -p workspace
           cp init.vphone.sh ./workspace/
           cp vphone.rc ./workspace/
+          docker save redroid/redroid:${{ github.event.inputs.android_version }}_magisk -o ./workspace/base_magisk.tar
           
           cat <<EOF > ./workspace/Dockerfile
           # Lấy lớp nền chứa Magisk vừa được tạo ra ở bước trước
