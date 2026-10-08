@@ -1,4 +1,4 @@
-service vphone_init /system/bin/sh /system/bin/init.vphone.sh
+service vphone_init /vendor/bin/init.vphone.sh
     class late_start
     user root
     group root
