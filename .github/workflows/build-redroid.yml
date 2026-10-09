@@ -36,7 +36,7 @@ jobs:
       - name: Extract and Patch Magisk
         run: |
           cd builder
-          python3 redroid.py -a ${{ github.event.inputs.android_version }} -m
+          python3 redroid.py -a ${{ github.event.inputs.android_version }} -mg
 
       # 5. Xử lý phân quyền file an toàn từ máy chủ ảo GitHub Actions (SỬA TRIỆT ĐỂ LỖI 255)
       - name: Prepare Workspace and Fix Permissions Outside Docker
@@ -54,7 +54,7 @@ jobs:
         run: |
           cat <<EOF > ./workspace/Dockerfile
           # Sử dụng Image gốc đã có Magisk nằm ngay trong bộ nhớ đệm Local của máy ảo
-          FROM redroid/redroid:${{ github.event.inputs.android_version }}_magisk
+          FROM redroid/redroid:${{ github.event.inputs.android_version }}_magiskg
 
           # Nhúng tập lệnh tự sinh IMEI/PIN vào phân vùng Vendor
           COPY init.vphone.sh /vendor/bin/init.vphone.sh
