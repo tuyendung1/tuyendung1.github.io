@@ -36,7 +36,7 @@ jobs:
       - name: Extract and Patch Magisk
         run: |
           cd builder
-          python3 redroid.py -a ${{ github.event.inputs.android_version }} -mg
+          python3 redroid.py -a ${{ github.event.inputs.android_version }} -g
 
       # 5. Xử lý phân quyền file an toàn từ máy chủ ảo GitHub Actions (SỬA TRIỆT ĐỂ LỖI 255)
       - name: Prepare Workspace and Fix Permissions Outside Docker
