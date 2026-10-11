@@ -54,7 +54,7 @@ jobs:
         run: |
           cat <<EOF > ./workspace/Dockerfile
           # Sử dụng Image gốc đã có Magisk nằm ngay trong bộ nhớ đệm Local của máy ảo
-          FROM redroid/redroid:${{ github.event.inputs.android_version }}_magiskg
+          FROM redroid/redroid:${{ github.event.inputs.android_version }}_magisk
 
           # Nhúng tập lệnh tự sinh IMEI/PIN vào phân vùng Vendor
           COPY init.vphone.sh /vendor/bin/init.vphone.sh
@@ -74,7 +74,7 @@ jobs:
         run: |
           # Ép tên tài khoản viết thường để tránh lỗi hệ thống Registry
           REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          TARGET_TAG="ghcr.io/${REPO_OWNER}/redroid-auto-imei:${{ github.event.inputs.android_version }}"
+          TARGET_TAG="ghcr.io/${REPO_OWNER}/redroid-auto:${{ github.event.inputs.android_version }}"
           
           cd workspace
           
